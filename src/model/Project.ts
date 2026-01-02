@@ -14,7 +14,7 @@ const projectSchema: Schema = new Schema({
   status: {type: String,
      enum: ['active', 'completed', 'archived'],
       deafult: 'active'},
-  xreatedAt: {type: Date, default: Date.now}
+  createdAt: {type: Date, default: Date.now}
 
 })
 

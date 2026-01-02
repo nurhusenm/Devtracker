@@ -2,6 +2,8 @@
 import express, {type Request, type Response } from 'express';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose'; // <--- Import Mongoose
+import projectRoutes from './routes/projectRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
 
 dotenv.config();
 
@@ -10,6 +12,8 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
+app.use('/api/projects', projectRoutes)
+app.use('/api/tasks', taskRoutes)
 // --- Database Connection ---
 const mongoURI = process.env.MONGO_URI;
 
