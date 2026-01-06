@@ -11,26 +11,45 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, email, password } = req.body;
 
+    // Validation: Check if required fields are provided
+    if (!username || !email || !password) {
+      res.status(400).json({ message: "Username, email, and password are required" });
+      return;
+    }
+
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ $or: [{ email }, { username }] });
     if (existingUser) {
         res.status(400).json({ message: "User already exists" });
         return; 
     }
 
-    // Hash the password (The Magic Blender)
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // Save User
-    const newUser = new User({ username, email, 
-        
-        password: passwordHash });
+    // Create User - password will be hashed automatically by the pre-save hook in User model
+    const newUser = new User({ 
+      username,
+      email, 
+      password // Don't hash here - the User model's pre-save hook will handle it
+    });
     await newUser.save();
 
-    res.status(201).json({ message: "User created successfully" });
+    res.status(201).json({ message: "User created successfully", userId: newUser._id });
   } catch (error) {
-    res.status(500).json({ message: "Error registering user" });
+    // Better error handling - log the actual error and return a proper message
+    console.error("Registration error:", error);
+    
+    // Handle Mongoose validation errors
+    if (error instanceof Error) {
+      if (error.name === 'ValidationError') {
+        res.status(400).json({ message: "Validation error", error: error.message });
+        return;
+      }
+      if (error.name === 'MongoServerError' && (error as any).code === 11000) {
+        res.status(400).json({ message: "Username or email already exists" });
+        return;
+      }
+    }
+    
+    res.status(500).json({ message: "Error registering user", error: error instanceof Error ? error.message : String(error) });
   }
 };
 
@@ -62,6 +81,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     res.json({ token, userId: user._id });
   } catch (error) {
-    res.status(500).json({ message: "Error logging in" });
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Error logging in", error: error instanceof Error ? error.message : String(error) });
   }
 };
