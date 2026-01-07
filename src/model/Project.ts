@@ -5,6 +5,7 @@ export  interface Iproject extends Document {
   description: string,
   status: 'active' | 'completed' | 'archived',
   createdAt: Date
+  owner: mongoose.Types.ObjectId;
 
 }
 
@@ -14,7 +15,8 @@ const projectSchema: Schema = new Schema({
   status: {type: String,
      enum: ['active', 'completed', 'archived'],
       deafult: 'active'},
-  createdAt: {type: Date, default: Date.now}
+  createdAt: {type: Date, default: Date.now},
+  owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true }
 
 })
 
