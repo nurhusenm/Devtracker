@@ -5,7 +5,10 @@ import { type AuthRequest } from '../middlewares/authMiddleware.js';
 // 1. Get all Projects (Dashboard view)
 export const getProjects = async (req: Request, res: Response) => {
   try {
-    const projects = await Project.find(); // Mongoose query
+
+    const userId = (req as AuthRequest).user?.userId;
+
+    const projects = await Project.find({ owner: userId}); // Mongoose query
     res.json(projects);
   } catch (error) {
     res.status(500).json({ message: 'Server Error' });
@@ -39,6 +42,69 @@ const userId = (req as AuthRequest).user?.userId;
     // Respond with the saved data
     res.status(201).json(savedProject);
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create project' });
+    res.status(500).json({ message: 'Failed to create project', error });
   }
 };
+
+export const deleteProject = async (req: Request, res: Response): Promise<void> => {
+
+  try {
+    
+  const {id} = req.params;
+  const userId = (req as AuthRequest).user?.userId;
+
+  const project = await Project.findById(id);
+
+  if (!project) {
+    res.status(404).json({ message: "Project not found" });
+    return;
+  }
+
+  if (project.owner.toString() !== userId) {
+    res.status(403).json({ message: "Not authorized to delete this project" });
+    return;
+}
+
+await project.deleteOne();
+// await project.save();
+
+res.json({ message: "Project deleted successfully" });
+
+
+} catch (error) {
+  res.status(500).json({ message: 'Failed to delete project' });
+}
+}
+
+export const updateProject = async (req: Request, res: Response): Promise<void> => {
+
+  try {
+    
+  const {id } = req.params;
+  const { name, description, status} = req.body;
+  const userId = (req as AuthRequest).user?.userId;
+
+  const project = await Project.findById(id);
+
+  if (!project) {
+    res.status(404).json({ message: "Project not found" });
+    return;
+  }
+
+  if (project.owner.toString() !== userId) {
+    res.status(403).json({ message: "Not authorized to update this project" });
+    return;
+}
+
+
+project.name = name ?? project.name;
+project.description = description ?? project.description;
+project.status = status ?? project.status;
+
+await project.save();
+res.json(project);
+
+} catch (error) {
+  res.status(500).json({ message: 'Failed to update project' });
+}
+}
