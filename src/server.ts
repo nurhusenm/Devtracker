@@ -5,6 +5,8 @@ import mongoose from 'mongoose'; // <--- Import Mongoose
 import projectRoutes from './routes/projectRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import authRouter from './routes/authRoutes.js'
+import cors from 'cors';
+
 
 dotenv.config();
 
@@ -12,10 +14,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(cors());
+
 
 app.use('/api/auth', authRouter);
 app.use('/api/projects', projectRoutes)
 app.use('/api/tasks', taskRoutes);
+
 
 // --- Database Connection ---
 const mongoURI = process.env.MONGO_URI;
