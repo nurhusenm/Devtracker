@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard'
 // Create a placeholder Dashboard so we don't crash
-const Dashboard = () => <h1 className="text-3xl p-10">Welcome to the Dashboard</h1>;
+// const Dashboard = () => <h1 className="text-3xl p-10">Welcome to the Dashboard</h1>;
 
 function App() {
   return (
