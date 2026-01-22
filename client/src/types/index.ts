@@ -6,3 +6,14 @@ export interface Project {
     owner: 'string';
     createdAt: string;
 }
+
+export interface Task {
+    _id: string;
+    projectId: string; // Links the task to a specific project
+    title: string;
+    description: string;
+    status: 'todo' | 'in-progress' | 'done'; // The key for your Kanban columns
+    priority: 'low' | 'medium' | 'high';
+    dueDate?: string; 
+    createdAt: string;
+}

@@ -113,6 +113,26 @@ const Dashboard = () => {
       </div>
 
 
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {projects.map((project) => (
+            <div 
+            key={project._id} 
+            // 3. ADD THIS CLASS: 'cursor-pointer' makes it look clickable
+            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer"
+            
+            // 4. ADD THIS CLICK HANDLER: This performs the navigation
+            onClick={() => navigate(`/project/${project._id}`)}
+            >
+            <div className="flex justify-between items-start mb-4">
+                <h3 className="text-xl font-semibold text-gray-800">{project.name}</h3>
+                {/* ... Status Badge ... */}
+            </div>
+            {/* ... Description and Date ... */}
+            </div>
+        ))}
+    </div>
+
+
      {/* --- NEW: The Modal UI --- */}
      {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
