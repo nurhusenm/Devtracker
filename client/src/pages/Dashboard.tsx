@@ -2,13 +2,21 @@ import { useEffect, useState } from 'react';
 import api from '../services/api';
 import {type  Project } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Plus, LogOut } from 'lucide-react'; // Icons
+import { Plus, LogOut, X } from 'lucide-react'; // Icons
+import { useNavigate } from 'react-router-dom'; // to navigate to details later
 
 const Dashboard = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { logout, user } = useAuth(); // We can access the user ID here if needed
+  const navigate = useNavigate();
+
+  // --- NEW: Modal State ---
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDesc, setNewProjectDesc] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
 
   const fetchProjects = async () => {
     try {
@@ -24,6 +32,30 @@ const Dashboard = () => {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  // --- NEW: Handle Create Project ---
+  const handleCreateProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateLoading(true);
+    try {
+        const res = await api.post('/projects', {
+            name: newProjectName,
+            description: newProjectDesc
+        });
+        
+        // THE MAGIC: Add the new project to the list immediately
+        setProjects([...projects, res.data]);
+        
+        // Reset and Close
+        setNewProjectName('');
+        setNewProjectDesc('');
+        setIsModalOpen(false);
+    } catch (err) {
+        alert("Failed to create project");
+    } finally {
+        setCreateLoading(false);
+    }
+  };
 
   if (loading) return <div className="text-center p-10">Loading projects...</div>;
 
@@ -44,7 +76,7 @@ const Dashboard = () => {
       <div className="max-w-6xl mx-auto p-8">
         <div className="flex justify-between items-center mb-8">
           <h2 className="text-3xl font-bold text-gray-900">My Projects</h2>
-          <button className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+          <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
             <Plus size={20} /> New Project
           </button>
         </div>
@@ -79,6 +111,59 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+
+
+     {/* --- NEW: The Modal UI --- */}
+     {isModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold">Create New Project</h3>
+                    <button onClick={() => setIsModalOpen(false)} className="text-gray-500 hover:text-gray-700">
+                        <X size={24} />
+                    </button>
+                </div>
+                <form onSubmit={handleCreateProject} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Project Name</label>
+                        <input 
+                            type="text" 
+                            required
+                            className="w-full p-2 border rounded mt-1"
+                            value={newProjectName}
+                            onChange={(e) => setNewProjectName(e.target.value)}
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700">Description</label>
+                        <textarea 
+                            required
+                            className="w-full p-2 border rounded mt-1"
+                            rows={3}
+                            value={newProjectDesc}
+                            onChange={(e) => setNewProjectDesc(e.target.value)}
+                        />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-6">
+                        <button 
+                            type="button"
+                            onClick={() => setIsModalOpen(false)}
+                            className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+                        >
+                            Cancel
+                        </button>
+                        <button 
+                            type="submit"
+                            disabled={createLoading}
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                            {createLoading ? 'Creating...' : 'Create Project'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+      )}
     </div>
   );
 };
