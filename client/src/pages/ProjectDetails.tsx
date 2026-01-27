@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { type Task, type Project } from '../types';
-import { ArrowLeft, Plus, Trash2, CheckCircle, Clock, Circle, X, Calendar } from 'lucide-react';
+import { type Task } from '../types';
+import { ArrowLeft, Plus, Trash2, CheckCircle, Clock, Circle, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
 
 const ProjectDetails = () => {
   const { id } = useParams();
@@ -16,8 +16,8 @@ const ProjectDetails = () => {
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
 
-  // State for Viewing a Task (The new Modal)
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  // --- NEW: Track Expanded Cards (Set allows multiple open at once) ---
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,6 +32,17 @@ const ProjectDetails = () => {
     };
     fetchData();
   }, [id]);
+
+  // Toggle Accordion Logic
+  const toggleTaskExpansion = (taskId: string) => {
+    const newSet = new Set(expandedTasks);
+    if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+    } else {
+        newSet.add(taskId);
+    }
+    setExpandedTasks(newSet);
+  };
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,30 +65,24 @@ const ProjectDetails = () => {
   };
 
   const handleDeleteTask = async (e: React.MouseEvent, taskId: string) => {
-    e.stopPropagation(); // Prevent opening the modal when clicking delete
+    e.stopPropagation(); 
     if(!confirm("Are you sure?")) return;
     try {
         await api.delete(`/tasks/${taskId}`);
         setTasks(tasks.filter(t => t._id !== taskId));
-        if (selectedTask?._id === taskId) setSelectedTask(null); // Close modal if open
     } catch(err) {
         alert("Failed to delete");
     }
   }
 
   const handleStatusChange = async (e: React.MouseEvent, task: Task, newStatus: 'todo' | 'in-progress' | 'done') => {
-      e.stopPropagation(); // Prevent opening modal
+      e.stopPropagation();
       try {
           const updatedTasks = tasks.map(t => 
             t._id === task._id ? { ...t, status: newStatus } : t
           );
           setTasks(updatedTasks);
           await api.patch(`/tasks/${task._id}`, { status: newStatus });
-          
-          // Update selected task if it's currently open
-          if (selectedTask?._id === task._id) {
-            setSelectedTask({ ...task, status: newStatus });
-          }
       } catch (err) {
           alert("Failed to move task");
       }
@@ -85,8 +90,6 @@ const ProjectDetails = () => {
 
   if (loading) return <div className="p-10 text-center">Loading board...</div>;
 
-  // --- Helper Function to Render Columns (Fixed Focus Bug) ---
-  // We use a function instead of a Component to keep state simple without prop drilling
   const renderColumn = (title: string, status: string, icon: any) => {
     const columnTasks = tasks.filter(t => t.status === status);
 
@@ -101,38 +104,62 @@ const ProjectDetails = () => {
         </div>
 
         <div className="space-y-3">
-          {columnTasks.map(task => (
-            <div 
-                key={task._id} 
-                onClick={() => setSelectedTask(task)} // Open Modal
-                className="bg-white p-3 rounded shadow-sm border border-gray-200 group hover:shadow-md transition cursor-pointer"
-            >
-              <div className="flex justify-between items-start">
-                <span className="text-gray-800 font-medium">{task.title}</span>
-                <button 
-                    onClick={(e) => handleDeleteTask(e, task._id)}
-                    className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                >
-                    <Trash2 size={16} />
-                </button>
+          {columnTasks.map(task => {
+            const isExpanded = expandedTasks.has(task._id);
+
+            return (
+              <div 
+                  key={task._id} 
+                  onClick={() => toggleTaskExpansion(task._id)} // Toggle on click
+                  className={`bg-white p-3 rounded shadow-sm border transition cursor-pointer group 
+                    ${isExpanded ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200 hover:shadow-md'}`}
+              >
+                {/* Card Header (Always Visible) */}
+                <div className="flex justify-between items-start">
+                  <span className="text-gray-800 font-medium">{task.title}</span>
+                  <div className="flex items-center gap-2">
+                    {/* Visual Cue for Expansion */}
+                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                    
+                    <button 
+                        onClick={(e) => handleDeleteTask(e, task._id)}
+                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                    >
+                        <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                
+                {/* --- THE SLIDING SECTION (Description) --- */}
+                {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-gray-100 animate-fadeIn">
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                            {task.description || <span className="italic text-gray-400">No description provided.</span>}
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-3">
+                            <Calendar size={12} />
+                            {new Date(task.createdAt).toLocaleDateString()}
+                        </div>
+                    </div>
+                )}
+
+                {/* Footer Buttons */}
+                <div className="flex gap-2 mt-3 text-xs text-gray-500 border-t border-transparent pt-1">
+                    {status !== 'todo' && (
+                        <button onClick={(e) => handleStatusChange(e, task, 'todo')} className="hover:text-blue-600 font-medium">← Todo</button>
+                    )}
+                    {status !== 'in-progress' && (
+                        <button onClick={(e) => handleStatusChange(e, task, 'in-progress')} className="hover:text-blue-600 font-medium">
+                            {status === 'todo' ? 'Start →' : '← Return'}
+                        </button>
+                    )}
+                    {status !== 'done' && (
+                        <button onClick={(e) => handleStatusChange(e, task, 'done')} className="hover:text-green-600 font-medium">Done →</button>
+                    )}
+                </div>
               </div>
-              
-              {/* Quick Move Buttons */}
-              <div className="flex gap-2 mt-3 text-xs text-gray-500">
-                  {status !== 'todo' && (
-                      <button onClick={(e) => handleStatusChange(e, task, 'todo')} className="hover:text-blue-600">← Todo</button>
-                  )}
-                  {status !== 'in-progress' && (
-                      <button onClick={(e) => handleStatusChange(e, task, 'in-progress')} className="hover:text-blue-600">
-                          {status === 'todo' ? 'Start →' : '← Return'}
-                      </button>
-                  )}
-                  {status !== 'done' && (
-                      <button onClick={(e) => handleStatusChange(e, task, 'done')} className="hover:text-green-600">Done →</button>
-                  )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Add Form Only in Todo */}
@@ -191,45 +218,6 @@ const ProjectDetails = () => {
         {renderColumn("In Progress", "in-progress", <Clock size={18} className="text-blue-500" />)}
         {renderColumn("Done", "done", <CheckCircle size={18} className="text-green-500" />)}
       </div>
-
-      {/* --- Task Detail Modal --- */}
-      {selectedTask && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-lg shadow-xl">
-                <div className="flex justify-between items-start mb-4">
-                    <h2 className="text-xl font-bold text-gray-800">{selectedTask.title}</h2>
-                    <button onClick={() => setSelectedTask(null)} className="text-gray-400 hover:text-gray-600">
-                        <X size={24} />
-                    </button>
-                </div>
-                
-                {/* Status Badge */}
-                <div className="mb-6">
-                    <span className={`px-2 py-1 text-xs rounded-full uppercase font-bold tracking-wide ${
-                        selectedTask.status === 'done' ? 'bg-green-100 text-green-700' :
-                        selectedTask.status === 'in-progress' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
-                    }`}>
-                        {selectedTask.status}
-                    </span>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-500 uppercase mb-1">Description</h3>
-                        <p className="text-gray-700 whitespace-pre-wrap">
-                            {selectedTask.description || "No description provided."}
-                        </p>
-                    </div>
-
-                    <div className="flex items-center gap-2 text-sm text-gray-400 border-t pt-4">
-                        <Calendar size={16} />
-                        Created: {new Date(selectedTask.createdAt).toLocaleString()}
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
     </div>
   );
 };
