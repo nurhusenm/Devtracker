@@ -26,8 +26,8 @@ export const createTask = async (req: Request, res: Response): Promise<void> => 
     res.status(201).json(savedTask);
 
   } catch (error) {
-    res.status(500).json({ message: 'Failed to create task', error });
-  }
+    console.error("🔥 ERROR CREATING TASK:", error); 
+    res.status(500).json({ message: 'Failed to create task', error });  }
 };
 
 // 2. Get Tasks for a specific Project

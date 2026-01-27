@@ -11,8 +11,8 @@ export  interface ITask extends Document{
 
 const TaskSchema: Schema = new Schema({
     title: {type: String, required: true},
-    description: {type: String, required: true},
-    status: {type: String, enum: ['todo', 'inprogress', 'done'],
+    description: {type: String, required: false},
+    status: {type: String, enum: ['todo', 'in-progress', 'done'],
         default: 'todo'
     },
     projectId: {

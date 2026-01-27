@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import {type  Project } from '../types';
+import { type Project } from '../types';
 import { useAuth } from '../context/AuthContext';
-import { Plus, LogOut, X } from 'lucide-react'; // Icons
-import { useNavigate } from 'react-router-dom'; // to navigate to details later
+import { Plus, LogOut, X } from 'lucide-react'; 
+import { useNavigate } from 'react-router-dom'; 
 
 const Dashboard = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const { logout, user } = useAuth(); // We can access the user ID here if needed
-  const navigate = useNavigate();
+  const { logout } = useAuth(); 
+  const navigate = useNavigate(); // Hook for navigation
 
-  // --- NEW: Modal State ---
+  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
@@ -20,7 +20,7 @@ const Dashboard = () => {
 
   const fetchProjects = async () => {
     try {
-      const res = await api.get('/projects'); // Interceptor attaches token!
+      const res = await api.get('/projects');
       setProjects(res.data);
     } catch (err) {
       setError('Failed to load projects');
@@ -33,7 +33,6 @@ const Dashboard = () => {
     fetchProjects();
   }, []);
 
-  // --- NEW: Handle Create Project ---
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreateLoading(true);
@@ -42,11 +41,7 @@ const Dashboard = () => {
             name: newProjectName,
             description: newProjectDesc
         });
-        
-        // THE MAGIC: Add the new project to the list immediately
         setProjects([...projects, res.data]);
-        
-        // Reset and Close
         setNewProjectName('');
         setNewProjectDesc('');
         setIsModalOpen(false);
@@ -83,7 +78,7 @@ const Dashboard = () => {
 
         {error && <div className="text-red-500 mb-4">{error}</div>}
 
-        {/* Project Grid */}
+        {/* Project Grid Logic */}
         {projects.length === 0 ? (
           <div className="text-center py-20 text-gray-500">
             You don't have any projects yet. Create one!
@@ -91,7 +86,13 @@ const Dashboard = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((project) => (
-              <div key={project._id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition">
+              <div 
+                key={project._id} 
+                // 1. Made it interactive with cursor-pointer
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer"
+                // 2. Added the navigation click handler
+                onClick={() => navigate(`/project/${project._id}`)}
+              >
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="text-xl font-semibold text-gray-800">{project.name}</h3>
                   <span className={`px-2 py-1 text-xs rounded-full ${
@@ -112,28 +113,7 @@ const Dashboard = () => {
         )}
       </div>
 
-
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-            <div 
-            key={project._id} 
-            // 3. ADD THIS CLASS: 'cursor-pointer' makes it look clickable
-            className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer"
-            
-            // 4. ADD THIS CLICK HANDLER: This performs the navigation
-            onClick={() => navigate(`/project/${project._id}`)}
-            >
-            <div className="flex justify-between items-start mb-4">
-                <h3 className="text-xl font-semibold text-gray-800">{project.name}</h3>
-                {/* ... Status Badge ... */}
-            </div>
-            {/* ... Description and Date ... */}
-            </div>
-        ))}
-    </div>
-
-
-     {/* --- NEW: The Modal UI --- */}
+     {/* Modal UI */}
      {isModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
