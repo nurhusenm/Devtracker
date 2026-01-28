@@ -3,7 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { type Task } from '../types';
 import { ArrowLeft, Plus, Trash2, CheckCircle, Clock, Circle, ChevronDown, ChevronUp, Calendar } from 'lucide-react';
-
+import { restrictToWindowEdges } from '@dnd-kit/modifiers';
+// --- NEW IMPORTS FOR DRAG AND DROP ---
+import { DndContext, type DragEndEvent } from '@dnd-kit/core';
+import { DraggableTask } from '../components/DraggableTask';
+import { DroppableColumn } from '../components/DroppableColumn';
 const ProjectDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -11,12 +15,9 @@ const ProjectDetails = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // State for Creating a Task
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDesc, setNewTaskDesc] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
-
-  // --- NEW: Track Expanded Cards (Set allows multiple open at once) ---
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -33,7 +34,6 @@ const ProjectDetails = () => {
     fetchData();
   }, [id]);
 
-  // Toggle Accordion Logic
   const toggleTaskExpansion = (taskId: string) => {
     const newSet = new Set(expandedTasks);
     if (newSet.has(taskId)) {
@@ -64,7 +64,7 @@ const ProjectDetails = () => {
     }
   };
 
-  const handleDeleteTask = async (e: React.MouseEvent, taskId: string) => {
+  const handleDeleteTask = async (e: React.MouseEvent | React.TouchEvent, taskId: string) => {
     e.stopPropagation(); 
     if(!confirm("Are you sure?")) return;
     try {
@@ -75,18 +75,44 @@ const ProjectDetails = () => {
     }
   }
 
-  const handleStatusChange = async (e: React.MouseEvent, task: Task, newStatus: 'todo' | 'in-progress' | 'done') => {
+  // Refactored: Reusable function for button clicks AND drag drops
+  const updateTaskStatus = async (taskId: string, newStatus: 'todo' | 'in-progress' | 'done') => {
+    try {
+        // 1. Optimistic Update
+        setTasks(prevTasks => prevTasks.map(t => 
+            t._id === taskId ? { ...t, status: newStatus } : t
+        ));
+
+        // 2. API Call
+        await api.patch(`/tasks/${taskId}`, { status: newStatus });
+    } catch (err) {
+        alert("Failed to update status");
+        // Optional: Revert state here on error
+    }
+  };
+
+  const handleStatusButtonClick = (e: React.MouseEvent, taskId: string, newStatus: 'todo' | 'in-progress' | 'done') => {
       e.stopPropagation();
-      try {
-          const updatedTasks = tasks.map(t => 
-            t._id === task._id ? { ...t, status: newStatus } : t
-          );
-          setTasks(updatedTasks);
-          await api.patch(`/tasks/${task._id}`, { status: newStatus });
-      } catch (err) {
-          alert("Failed to move task");
-      }
-  }
+      updateTaskStatus(taskId, newStatus);
+  };
+
+  // --- NEW: The Drag End Handler ---
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    // If dropped nowhere, or dropped on the same column it started in
+    if (!over) return;
+
+    const taskId = active.id as string;
+    const newStatus = over.id as 'todo' | 'in-progress' | 'done';
+
+    const currentTask = tasks.find(t => t._id === taskId);
+    
+    // Only update if the status actually changed
+    if (currentTask && currentTask.status !== newStatus) {
+        updateTaskStatus(taskId, newStatus);
+    }
+  };
 
   if (loading) return <div className="p-10 text-center">Loading board...</div>;
 
@@ -94,8 +120,14 @@ const ProjectDetails = () => {
     const columnTasks = tasks.filter(t => t.status === status);
 
     return (
-      <div className="bg-gray-100 p-4 rounded-lg min-h-[500px] w-full min-w-[300px]">
-        <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700">
+      // FIX 1: Changed 'min-h-[500px]' to 'h-full max-h-full' 
+      // This forces the gray column to respect the screen boundaries
+      <DroppableColumn 
+        id={status} 
+        className="bg-gray-100 p-4 rounded-lg h-full max-h-full w-full min-w-[300px] flex flex-col"
+      >
+        {/* Header stays the same */}
+        <div className="flex items-center gap-2 mb-4 font-semibold text-gray-700 flex-shrink-0">
           {icon}
           {title} 
           <span className="bg-gray-200 text-xs px-2 py-1 rounded-full text-gray-600">
@@ -103,69 +135,70 @@ const ProjectDetails = () => {
           </span>
         </div>
 
-        <div className="space-y-3">
+        {/* FIX 2: Added 'overflow-y-auto' and 'pr-2' (padding for scrollbar) */}
+        {/* This creates the scrollbar INSIDE the gray box */}
+        <div className="space-y-3 flex-1 overflow-y-auto min-h-0 pr-2 custom-scrollbar">
           {columnTasks.map(task => {
             const isExpanded = expandedTasks.has(task._id);
 
             return (
-              <div 
-                  key={task._id} 
-                  onClick={() => toggleTaskExpansion(task._id)} // Toggle on click
-                  className={`bg-white p-3 rounded shadow-sm border transition cursor-pointer group 
-                    ${isExpanded ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200 hover:shadow-md'}`}
-              >
-                {/* Card Header (Always Visible) */}
-                <div className="flex justify-between items-start">
-                  <span className="text-gray-800 font-medium">{task.title}</span>
-                  <div className="flex items-center gap-2">
-                    {/* Visual Cue for Expansion */}
-                    {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                    
-                    <button 
-                        onClick={(e) => handleDeleteTask(e, task._id)}
-                        className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                    >
-                        <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-                
-                {/* --- THE SLIDING SECTION (Description) --- */}
-                {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-gray-100 animate-fadeIn">
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                            {task.description || <span className="italic text-gray-400">No description provided.</span>}
-                        </p>
-                        <div className="flex items-center gap-2 text-xs text-gray-400 mt-3">
-                            <Calendar size={12} />
-                            {new Date(task.createdAt).toLocaleDateString()}
-                        </div>
-                    </div>
-                )}
-
-                {/* Footer Buttons */}
-                <div className="flex gap-2 mt-3 text-xs text-gray-500 border-t border-transparent pt-1">
-                    {status !== 'todo' && (
-                        <button onClick={(e) => handleStatusChange(e, task, 'todo')} className="hover:text-blue-600 font-medium">← Todo</button>
-                    )}
-                    {status !== 'in-progress' && (
-                        <button onClick={(e) => handleStatusChange(e, task, 'in-progress')} className="hover:text-blue-600 font-medium">
-                            {status === 'todo' ? 'Start →' : '← Return'}
+              <DraggableTask key={task._id} id={task._id}>
+                 {/* ... Your existing Task Card code (No changes needed inside here) ... */}
+                 <div 
+                      onClick={() => toggleTaskExpansion(task._id)} 
+                      className={`bg-white p-3 rounded shadow-sm border transition cursor-pointer group 
+                        ${isExpanded ? 'border-blue-300 ring-1 ring-blue-100' : 'border-gray-200 hover:shadow-md'}`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <span className="text-gray-800 font-medium">{task.title}</span>
+                      <div className="flex items-center gap-2">
+                        {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                        <button 
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => handleDeleteTask(e, task._id)}
+                            className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
+                        >
+                            <Trash2 size={16} />
                         </button>
+                      </div>
+                    </div>
+                    
+                    {isExpanded && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 animate-fadeIn">
+                            <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+                                {task.description || <span className="italic text-gray-400">No description provided.</span>}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-3">
+                                <Calendar size={12} />
+                                {new Date(task.createdAt).toLocaleDateString()}
+                            </div>
+                        </div>
                     )}
-                    {status !== 'done' && (
-                        <button onClick={(e) => handleStatusChange(e, task, 'done')} className="hover:text-green-600 font-medium">Done →</button>
-                    )}
-                </div>
-              </div>
+
+                    <div className="flex gap-2 mt-3 text-xs text-gray-500 border-t border-transparent pt-1" onPointerDown={(e) => e.stopPropagation()}>
+                        {status !== 'todo' && (
+                            <button onClick={(e) => handleStatusButtonClick(e, task._id, 'todo')} className="hover:text-blue-600 font-medium">← Todo</button>
+                        )}
+                        {status !== 'in-progress' && (
+                            <button onClick={(e) => handleStatusButtonClick(e, task._id, 'in-progress')} className="hover:text-blue-600 font-medium">
+                                {status === 'todo' ? 'Start →' : '← Return'}
+                            </button>
+                        )}
+                        {status !== 'done' && (
+                            <button onClick={(e) => handleStatusButtonClick(e, task._id, 'done')} className="hover:text-green-600 font-medium">Done →</button>
+                        )}
+                    </div>
+                  </div>
+              </DraggableTask>
             );
           })}
         </div>
 
-        {/* Add Form Only in Todo */}
+        {/* Footer (Add Button) stays fixed at bottom */}
         {status === 'todo' && (
-            <div className="mt-4">
-                {isAddingTask ? (
+            <div className="mt-4 flex-shrink-0">
+               {/* ... Your existing Add Task Form code ... */}
+               {isAddingTask ? (
                     <form onSubmit={handleAddTask} className="bg-white p-3 rounded border border-blue-200 shadow-sm">
                         <input 
                             autoFocus
@@ -198,13 +231,12 @@ const ProjectDetails = () => {
                 )}
             </div>
         )}
-      </div>
+      </DroppableColumn>
     );
   };
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <div className="border-b px-6 py-4 flex items-center gap-4">
         <button onClick={() => navigate('/dashboard')} className="text-gray-500 hover:text-gray-800">
             <ArrowLeft />
@@ -212,12 +244,14 @@ const ProjectDetails = () => {
         <h1 className="text-2xl font-bold text-gray-800">Project Board</h1>
       </div>
 
-      {/* Board Columns */}
-      <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-x-auto h-[calc(100vh-100px)]">
-        {renderColumn("To Do", "todo", <Circle size={18} className="text-gray-400" />)}
-        {renderColumn("In Progress", "in-progress", <Clock size={18} className="text-blue-500" />)}
-        {renderColumn("Done", "done", <CheckCircle size={18} className="text-green-500" />)}
-      </div>
+     {/* FIX 3: Add modifiers={[restrictToWindowEdges]} */}
+     <DndContext onDragEnd={handleDragEnd} modifiers={[restrictToWindowEdges]}>
+        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 overflow-x-auto h-[calc(100vh-100px)]">
+            {renderColumn("To Do", "todo", <Circle size={18} className="text-gray-400" />)}
+            {renderColumn("In Progress", "in-progress", <Clock size={18} className="text-blue-500" />)}
+            {renderColumn("Done", "done", <CheckCircle size={18} className="text-green-500" />)}
+        </div>
+      </DndContext>
     </div>
   );
 };
